@@ -10,30 +10,24 @@
      Get it from: Firebase Console → Project Settings → Your apps → SDK setup
      ═══════════════════════════════════════════════════ -->
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc, onSnapshot }
+from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-  // ▼▼▼ PASTE YOUR FIREBASE CONFIG HERE ▼▼▼
-  const firebaseConfig = {
+const firebaseConfig = {
     apiKey: "AIzaSyBvXKM44IxS2xbQWCvJz1VQmVGLgkEoWLE",
     authDomain: "family-cars-9979d.firebaseapp.com",
     projectId: "family-cars-9979d",
     storageBucket: "family-cars-9979d.firebasestorage.app",
     messagingSenderId: "966657184208",
     appId: "1:966657184208:web:dcd02c70ddbca259f9e9d5"
-
-  // ▲▲▲ END OF CONFIG ▲▲▲
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-  };
-  // ▲▲▲ END OF CONFIG ▲▲▲
+const db = getFirestore(app);
 
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-  const DOC_REF = doc(db, "family", "reservations");
+const DOC_REF = doc(db, "family", "reservations");
+</script>
 
   // Expose to global scope for the calendar logic
   window._db = { db, doc, getDoc, setDoc, onSnapshot, DOC_REF };
