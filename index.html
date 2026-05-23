@@ -27,7 +27,6 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 const DOC_REF = doc(db, "family", "reservations");
-</script>
 
   // Expose to global scope for the calendar logic
   window._db = { db, doc, getDoc, setDoc, onSnapshot, DOC_REF };
