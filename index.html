@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>จองรถครอบครัว</title>
+
+<!-- ═══════════════════════════════════════════════════
+     STEP 1: Paste your Firebase config below
+     Get it from: Firebase Console → Project Settings → Your apps → SDK setup
+     ═══════════════════════════════════════════════════ -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  // ▼▼▼ PASTE YOUR FIREBASE CONFIG HERE ▼▼▼
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyBvXKM44IxS2xbQWCvJz1VQmVGLgkEoWLE",
+  authDomain: "family-cars-9979d.firebaseapp.com",
+  projectId: "family-cars-9979d",
+  storageBucket: "family-cars-9979d.firebasestorage.app",
+  messagingSenderId: "966657184208",
+  appId: "1:966657184208:web:dcd02c70ddbca259f9e9d5",
+  measurementId: "G-M2FCE6GLHP"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+  };
+  // ▲▲▲ END OF CONFIG ▲▲▲
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const DOC_REF = doc(db, "family", "reservations");
+
+  // Expose to global scope for the calendar logic
+  window._db = { db, doc, getDoc, setDoc, onSnapshot, DOC_REF };
+  window._firebaseReady = true;
+  document.dispatchEvent(new Event("firebase-ready"));
+</script>
+
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg2: #f7f7f5;
+    --bg3: #f0efec;
+    --text: #1a1a1a;
+    --text2: #666;
+    --text3: #999;
+    --border: rgba(0,0,0,0.1);
+    --border2: rgba(0,0,0,0.18);
+    --radius: 10px;
+    --radius-sm: 6px;
+    --font: 'Sarabun', system-ui, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1e;
+      --bg2: #2c2c2e;
+      --bg3: #3a3a3c;
+      --text: #f5f5f5;
+      --text2: #aaa;
+      --text3: #666;
+      --border: rgba(255,255,255,0.1);
+      --border2: rgba(255,255,255,0.2);
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&display=swap');
+
+  header {
+    padding: 18px 20px 14px;
+    border-bottom: 0.5px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 10;
+  }
+
+  .app-title { font-size: 17px; font-weight: 600; letter-spacing: -0.3px; }
+  .app-sub { font-size: 12px; color: var(--text3); margin-top: 1px; }
+
+  .sync-badge {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--text3);
+    background: var(--bg2);
+    border: 0.5px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 10px;
+  }
+  .sync-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: #4cd964;
+    transition: background 0.3s;
+  }
+  .sync-dot.loading { background: #ff9500; animation: blink 0.9s infinite; }
+  .sync-dot.err { background: #ff3b30; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  .main { padding: 16px 16px 100px; max-width: 480px; margin: 0 auto; }
+
+  .month-nav {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .month-nav button {
+    background: var(--bg2); border: 0.5px solid var(--border);
+    border-radius: var(--radius-sm); width: 36px; height: 36px;
+    cursor: pointer; font-size: 18px; color: var(--text2);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .month-nav button:hover { background: var(--bg3); }
+  .month-label { font-size: 16px; font-weight: 600; }
+
+  .car-tabs {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 8px; margin-bottom: 16px;
+  }
+  .car-tab {
+    padding: 10px 8px; text-align: center; border-radius: var(--radius);
+    cursor: pointer; font-size: 13px; font-weight: 500;
+    border: 0.5px solid var(--border); color: var(--text2);
+    background: var(--bg2); transition: all 0.15s; font-family: var(--font);
+  }
+  .car-tab .car-name { font-size: 14px; font-weight: 600; display: block; }
+  .car-tab .car-color { font-size: 11px; font-weight: 400; opacity: 0.7; display: block; margin-top: 2px; }
+  .car-tab.active-y { background: #fdf8ed; color: #5a4820; border-color: #e0c87a; }
+  .car-tab.active-c { background: #edf2f7; color: #2a3f55; border-color: #8aabc4; }
+
+  .legend {
+    display: flex; gap: 14px; margin-bottom: 14px; flex-wrap: wrap;
+  }
+  .li { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text2); }
+  .ld { width: 8px; height: 8px; border-radius: 50%; }
+  .lz { background: #9b72e0; } .lm { background: #f0a060; } .lg { background: #4fba8a; }
+
+  .cal-grid {
+    display: grid; grid-template-columns: repeat(7,1fr);
+    border-left: 0.5px solid var(--border);
+    border-top: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .dow-head {
+    text-align: center; padding: 9px 2px; font-size: 11px;
+    color: var(--text3); font-weight: 500;
+    border-right: 0.5px solid var(--border);
+    border-bottom: 0.5px solid var(--border);
+    background: var(--bg2);
+  }
+  .dow-sun { color: #e05050; } .dow-sat { color: #3a80c4; }
+
+  .day-cell {
+    border-right: 0.5px solid var(--border);
+    border-bottom: 0.5px solid var(--border);
+    min-height: 64px; padding: 5px 4px 4px;
+    cursor: pointer; transition: background 0.1s;
+    display: flex; flex-direction: column;
+    background: var(--bg);
+  }
+  .day-cell:hover { background: var(--bg2); }
+  .day-cell.dim { opacity: 0.28; pointer-events: none; }
+
+  .day-num {
+    font-size: 13px; margin-bottom: 3px; line-height: 1;
+    display: flex; align-items: center;
+  }
+  .day-num span {
+    width: 22px; height: 22px; display: inline-flex;
+    align-items: center; justify-content: center; border-radius: 50%;
+  }
+  .day-num.today span { background: var(--text); color: var(--bg); }
+  .day-num.dsun { color: #e05050; } .day-num.dsat { color: #3a80c4; }
+
+  .pill {
+    border-radius: 4px; font-size: 11px; font-weight: 500;
+    padding: 2px 5px; margin-top: 2px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 2px;
+  }
+  .pzen { background: #ede5fa; color: #4a2e8a; }
+  .pma { background: #fff0e6; color: #a04a10; }
+  .pgene { background: #e3f5ec; color: #155e40; }
+  @media (prefers-color-scheme: dark) {
+    .pzen { background: #3b2a6a; color: #d4b8ff; }
+    .pma { background: #5a2e0a; color: #ffcba0; }
+    .pgene { background: #0e3d26; color: #7adcab; }
+  }
+  .dx {
+    background: none; border: none; cursor: pointer;
+    opacity: 0.45; font-size: 10px; color: inherit; padding: 0; line-height: 1;
+  }
+  .dx:hover { opacity: 1; }
+  .plus-hint { color: var(--text3); opacity: 0.2; font-size: 15px; margin-top: auto; text-align: center; }
+
+  /* ── Modal ── */
+  .modal-wrap {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4); z-index: 100;
+    align-items: flex-end; justify-content: center;
+    padding: 0;
+  }
+  .modal-wrap.open { display: flex; }
+  .modal {
+    background: var(--bg); border-radius: 20px 20px 0 0;
+    padding: 20px 20px 36px; width: 100%; max-width: 480px;
+    border-top: 0.5px solid var(--border2);
+  }
+  .modal-handle {
+    width: 36px; height: 4px; background: var(--border2);
+    border-radius: 2px; margin: 0 auto 18px;
+  }
+  .modal-title { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+  .modal-sub { font-size: 12px; color: var(--text3); margin-bottom: 18px; }
+  .sec { font-size: 11px; color: var(--text3); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .p-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 18px; }
+  .pb {
+    border: 0.5px solid var(--border); border-radius: var(--radius);
+    padding: 10px 4px; text-align: center; cursor: pointer;
+    font-size: 13px; font-weight: 500; background: var(--bg2);
+    color: var(--text); font-family: var(--font); transition: all 0.12s;
+  }
+  .pb:hover { background: var(--bg3); }
+  .pbz { background: #ede5fa; color: #4a2e8a; border-color: #c4aeed; }
+  .pbm { background: #fff0e6; color: #a04a10; border-color: #f4b07a; }
+  .pbg { background: #e3f5ec; color: #155e40; border-color: #80d4a8; }
+  @media (prefers-color-scheme: dark) {
+    .pbz { background: #3b2a6a; color: #d4b8ff; border-color: #7a5acc; }
+    .pbm { background: #5a2e0a; color: #ffcba0; border-color: #c07a3a; }
+    .pbg { background: #0e3d26; color: #7adcab; border-color: #3a9a6a; }
+  }
+  .av {
+    width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600; margin: 0 auto 6px;
+  }
+  .avz { background: #c4aeed; color: #3d2870; }
+  .avm { background: #f4b07a; color: #7a3a0d; }
+  .avg { background: #80d4a8; color: #0e4a30; }
+
+  .rep-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
+  .rb {
+    border: 0.5px solid var(--border); border-radius: var(--radius-sm);
+    padding: 9px 8px; font-size: 12px; cursor: pointer;
+    background: var(--bg2); color: var(--text); text-align: center;
+    font-family: var(--font); transition: all 0.12s;
+  }
+  .rb:hover { background: var(--bg3); }
+  .rb.ron { background: var(--text); color: var(--bg); border-color: var(--text); }
+
+  .cfm {
+    width: 100%; border: none; border-radius: var(--radius);
+    padding: 14px; font-size: 14px; font-weight: 600;
+    cursor: pointer; background: var(--text); color: var(--bg);
+    margin-bottom: 10px; font-family: var(--font); transition: opacity 0.15s;
+  }
+  .cfm:disabled { opacity: 0.3; cursor: default; }
+  .ccl {
+    width: 100%; border: none; background: none;
+    color: var(--text3); font-size: 13px; cursor: pointer;
+    padding: 6px; font-family: var(--font);
+  }
+
+  .config-banner {
+    background: #fff8e1; border: 1px solid #ffe082;
+    border-radius: var(--radius); padding: 14px 16px;
+    margin-bottom: 16px; font-size: 13px; color: #5a4000;
+    line-height: 1.6;
+  }
+  .config-banner strong { display: block; margin-bottom: 4px; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="app-title">🚗 จองรถครอบครัว</div>
+    <div class="app-sub">Yaris · City</div>
+  </div>
+  <div class="sync-badge">
+    <div class="sync-dot loading" id="sdot"></div>
+    <span id="stxt">กำลังเชื่อมต่อ...</span>
+  </div>
+</header>
+
+<div class="main">
+
+  <div class="config-banner" id="config-banner" style="display:none">
+    <strong>⚙️ ยังไม่ได้ตั้งค่า Firebase</strong>
+    เปิดไฟล์นี้ใน text editor แล้วแทนที่ <code>YOUR_API_KEY</code> และค่าอื่นๆ ด้วย Firebase config ของคุณ
+  </div>
+
+  <div class="month-nav">
+    <button onclick="chMonth(-1)">&#8249;</button>
+    <span class="month-label" id="ml"></span>
+    <button onclick="chMonth(1)">&#8250;</button>
+  </div>
+
+  <div class="car-tabs">
+    <button class="car-tab active-y" id="ty" onclick="swCar('yaris')">
+      <span class="car-name">Yaris</span>
+      <span class="car-color">สีขาว (White)</span>
+    </button>
+    <button class="car-tab" id="tc" onclick="swCar('city')">
+      <span class="car-name">City</span>
+      <span class="car-color">Sonic Grey Pearl</span>
+    </button>
+  </div>
+
+  <div class="legend">
+    <div class="li"><div class="ld lz"></div>Zen</div>
+    <div class="li"><div class="ld lm"></div>Ma</div>
+    <div class="li"><div class="ld lg"></div>Gene</div>
+  </div>
+
+  <div class="cal-grid" id="cg"></div>
+</div>
+
+<!-- Modal -->
+<div class="modal-wrap" id="ovl">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="mt"></div>
+    <div class="modal-sub" id="ms"></div>
+    <div class="sec">ใครขับ?</div>
+    <div class="p-row">
+      <button class="pb" id="bz" onclick="sp('Zen')"><div class="av avz">ZN</div>Zen</button>
+      <button class="pb" id="bm" onclick="sp('Ma')"><div class="av avm">MA</div>Ma</button>
+      <button class="pb" id="bg" onclick="sp('Gene')"><div class="av avg">GN</div>Gene</button>
+    </div>
+    <div class="sec">จองซ้ำ</div>
+    <div class="rep-row">
+      <button class="rb ron" id="rn" onclick="sr('none')">วันนี้วันเดียว</button>
+      <button class="rb" id="rd" onclick="sr('dow')"><span id="rdl">ทุกวันจันทร์</span>เดือนนี้</button>
+    </div>
+    <button class="cfm" id="cfm" onclick="doRes()" disabled>เลือกคนขับก่อน</button>
+    <button class="ccl" onclick="closeMod()">ยกเลิก</button>
+  </div>
+</div>
+
+<script>
+const MTH=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+const DEN_TH=['อา','จ','อ','พ','พฤ','ศ','ส'];
+const DOW_TH=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัส','ศุกร์','เสาร์'];
+
+let mo=0, car='yaris', res={}, pend={};
+let saveTimeout=null;
+
+function dk(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function isT(d){const t=new Date();return d.getDate()===t.getDate()&&d.getMonth()===t.getMonth()&&d.getFullYear()===t.getFullYear()}
+
+function setSync(state,txt){
+  document.getElementById('sdot').className='sync-dot'+(state==='loading'?' loading':state==='err'?' err':'');
+  document.getElementById('stxt').textContent=txt;
+}
+
+// ── Firebase integration ──────────────────────────────
+function setupFirebase(){
+  const {onSnapshot,DOC_REF,setDoc}=window._db;
+
+  // Real-time listener — all devices update instantly
+  onSnapshot(DOC_REF, snap=>{
+    if(snap.exists()){
+      res=snap.data().reservations||{};
+    } else {
+      res={};
+    }
+    render();
+    setSync('ok','ซิงค์แล้ว');
+  }, err=>{
+    setSync('err','เชื่อมต่อไม่ได้');
+    console.error(err);
+  });
+}
+
+async function saveToFirebase(){
+  if(!window._firebaseReady) return;
+  const {setDoc,DOC_REF}=window._db;
+  setSync('loading','กำลังบันทึก...');
+  try{
+    await setDoc(DOC_REF,{reservations:res,updatedAt:new Date().toISOString()});
+    setSync('ok','บันทึกแล้ว');
+  } catch(e){
+    setSync('err','บันทึกไม่ได้');
+    console.error(e);
+  }
+}
+
+// Check if config is still placeholder
+function checkConfig(){
+  const scripts=document.querySelectorAll('script[type="module"]');
+  for(const s of scripts){
+    if(s.textContent.includes('YOUR_API_KEY')){
+      document.getElementById('config-banner').style.display='block';
+      setSync('err','ยังไม่ตั้งค่า');
+      return false;
+    }
+  }
+  return true;
+}
+
+// ── Calendar logic ────────────────────────────────────
+function chMonth(d){mo+=d;render()}
+
+function swCar(c){
+  car=c;
+  document.getElementById('ty').className='car-tab'+(c==='yaris'?' active-y':'');
+  document.getElementById('tc').className='car-tab'+(c==='city'?' active-c':'');
+  render();
+}
+
+function openMod(ds){
+  const d=new Date(ds+'T12:00:00');
+  pend={ds,car,person:null,rep:'none'};
+  document.getElementById('mt').textContent=car==='yaris'?'Yaris – สีขาว':'City – Sonic Grey Pearl';
+  document.getElementById('ms').textContent='วัน'+DOW_TH[d.getDay()]+' '+d.getDate()+' '+MTH[d.getMonth()]+' '+(d.getFullYear()+543);
+  document.getElementById('rdl').textContent='ทุกวัน'+DOW_TH[d.getDay()]+' ';
+  document.getElementById('rn').className='rb ron';
+  document.getElementById('rd').className='rb';
+  ['bz','bm','bg'].forEach(x=>document.getElementById(x).className='pb');
+  const b=document.getElementById('cfm');b.disabled=true;b.textContent='เลือกคนขับก่อน';
+  document.getElementById('ovl').classList.add('open');
+}
+
+function sp(p){
+  pend.person=p;
+  document.getElementById('bz').className='pb'+(p==='Zen'?' pbz':'');
+  document.getElementById('bm').className='pb'+(p==='Ma'?' pbm':'');
+  document.getElementById('bg').className='pb'+(p==='Gene'?' pbg':'');
+  updBtn();
+}
+
+function sr(r){
+  pend.rep=r;
+  document.getElementById('rn').className='rb'+(r==='none'?' ron':'');
+  document.getElementById('rd').className='rb'+(r==='dow'?' ron':'');
+  updBtn();
+}
+
+function updBtn(){
+  const b=document.getElementById('cfm');
+  if(!pend.person){b.disabled=true;b.textContent='เลือกคนขับก่อน';return;}
+  b.disabled=false;
+  const d=new Date(pend.ds+'T12:00:00');
+  b.textContent=pend.rep==='none'
+    ?'จอง '+pend.person+' – วันนี้'
+    :'จอง '+pend.person+' – ทุกวัน'+DOW_TH[d.getDay()];
+}
+
+async function doRes(){
+  if(!pend.person) return;
+  const d=new Date(pend.ds+'T12:00:00');
+  const y=d.getFullYear(),m=d.getMonth(),dow=d.getDay();
+  let dates=[pend.ds];
+  if(pend.rep==='dow'){
+    dates=[];
+    const last=new Date(y,m+1,0).getDate();
+    for(let i=1;i<=last;i++){const dd=new Date(y,m,i);if(dd.getDay()===dow)dates.push(dk(dd));}
+  }
+  dates.forEach(ds=>res[ds+'_'+pend.car]=pend.person);
+  closeMod();
+  render();
+  await saveToFirebase();
+}
+
+async function delRes(ds,c,e){
+  e.stopPropagation();
+  delete res[ds+'_'+c];
+  render();
+  await saveToFirebase();
+}
+
+function closeMod(){document.getElementById('ovl').classList.remove('open')}
+
+function render(){
+  const now=new Date();
+  const base=new Date(now.getFullYear(),now.getMonth()+mo,1);
+  const y=base.getFullYear(),m=base.getMonth();
+  document.getElementById('ml').textContent=MTH[m]+' '+(y+543);
+
+  const g=document.getElementById('cg');g.innerHTML='';
+  DEN_TH.forEach((d,i)=>{
+    const h=document.createElement('div');
+    h.className='dow-head'+(i===0?' dow-sun':i===6?' dow-sat':'');
+    h.textContent=d;g.appendChild(h);
+  });
+
+  const fd=new Date(y,m,1).getDay();
+  const dim=new Date(y,m+1,0).getDate();
+  const pd=new Date(y,m,0).getDate();
+  const tot=Math.ceil((fd+dim)/7)*7;
+
+  for(let i=0;i<tot;i++){
+    let d,inM=true;
+    if(i<fd){d=new Date(y,m-1,pd-fd+1+i);inM=false;}
+    else if(i-fd>=dim){d=new Date(y,m+1,i-fd-dim+1);inM=false;}
+    else{d=new Date(y,m,i-fd+1);}
+
+    const ds=dk(d),dow=d.getDay();
+    const cell=document.createElement('div');
+    cell.className='day-cell'+(inM?'':' dim');
+
+    const dn=document.createElement('div');
+    let dc='day-num';
+    if(inM&&isT(d)) dc+=' today';
+    else if(inM&&dow===0) dc+=' dsun';
+    else if(inM&&dow===6) dc+=' dsat';
+    dn.className=dc;
+    dn.innerHTML='<span>'+d.getDate()+'</span>';
+    cell.appendChild(dn);
+
+    if(inM){
+      const key=ds+'_'+car;
+      const rv=res[key];
+      if(rv){
+        const pill=document.createElement('div');
+        pill.className='pill p'+rv.toLowerCase();
+        pill.innerHTML='<span>'+rv+'</span><button class="dx" onclick="delRes(\''+ds+'\',\''+car+'\',event)">✕</button>';
+        cell.appendChild(pill);
+      } else {
+        const ph=document.createElement('div');
+        ph.className='plus-hint';ph.textContent='+';
+        cell.appendChild(ph);
+        cell.onclick=()=>openMod(ds);
+      }
+    }
+    g.appendChild(cell);
+  }
+}
+
+document.getElementById('ovl').addEventListener('click',function(e){if(e.target===this)closeMod()});
+
+// ── Boot ──────────────────────────────────────────────
+render(); // show calendar immediately even before Firebase loads
+
+if(checkConfig()){
+  document.addEventListener('firebase-ready',()=>{
+    setupFirebase();
+  });
+} else {
+  setSync('err','ยังไม่ตั้งค่า Firebase');
+}
+</script>
+</body>
+</html>
