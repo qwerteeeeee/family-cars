@@ -305,12 +305,17 @@ document.dispatchEvent(new Event("firebase-ready"));
   .det-time-full { margin-top: 14px; padding-top: 14px; border-top: 0.5px solid var(--border); }
   .det-time-bar { height: 6px; background: var(--bg3); border-radius: 3px; margin-top: 8px; position: relative; overflow: hidden; }
   .det-time-fill { position: absolute; height: 100%; background: var(--text); border-radius: 3px; }
-  .cfm-del {
-    width: 100%; border: none; border-radius: var(--radius);
-    padding: 14px; font-size: 14px; font-weight: 600;
-    cursor: pointer; background: #ff3b30; color: white;
-    margin-bottom: 10px; font-family: var(--font);
+  .det-card { margin-bottom: 12px; }
+  .det-card-hd {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
   }
+  .del-mini {
+    border: 0.5px solid rgba(255,59,48,0.35); background: none; color: #ff3b30;
+    font-size: 12px; font-weight: 500; cursor: pointer;
+    padding: 5px 12px; border-radius: var(--radius-sm); font-family: var(--font);
+    transition: background 0.12s;
+  }
+  .del-mini:active { background: rgba(255,59,48,0.08); }
 
   .config-banner {
     background: #fff8e1; border: 1px solid #ffe082;
@@ -396,30 +401,13 @@ document.dispatchEvent(new Event("firebase-ready"));
   </div>
 </div>
 
-<!-- View reservation detail modal -->
+<!-- View day detail modal -->
 <div class="modal-wrap" id="view-ovl">
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-title" id="vt"></div>
     <div class="modal-sub" id="vs"></div>
-    <div class="det-card">
-      <div class="det-grid">
-        <div>
-          <div class="det-label">คนขับ</div>
-          <div class="det-value" id="v-person"></div>
-        </div>
-        <div>
-          <div class="det-label">รถ</div>
-          <div class="det-value" id="v-car"></div>
-        </div>
-      </div>
-      <div class="det-time-full" id="v-time-block">
-        <div class="det-label">ช่วงเวลา</div>
-        <div class="det-value" id="v-time"></div>
-        <div class="det-time-bar"><div class="det-time-fill" id="v-time-fill"></div></div>
-      </div>
-    </div>
-    <button class="cfm-del" onclick="delFromView()">ลบการจองนี้</button>
+    <div id="v-list"></div>
     <button class="ccl" onclick="closeView()">ปิด</button>
   </div>
 </div>
@@ -429,7 +417,7 @@ const MTH=['มกราคม','กุมภาพันธ์','มีนา�
 const DEN_TH=['อา','จ','อ','พ','พฤ','ศ','ส'];
 const DOW_TH=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัส','ศุกร์','เสาร์'];
 
-let mo=0, res={}, pend={}, viewing={};
+let mo=0, res={}, pend={};
 
 function dk(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function isT(d){const t=new Date();return d.getDate()===t.getDate()&&d.getMonth()===t.getMonth()&&d.getFullYear()===t.getFullYear()}
@@ -578,35 +566,51 @@ async function doRes(){
   closeMod(); render(); await saveToFirebase();
 }
 
-async function delFromView(){
-  if(!viewing.ds||!viewing.car) return;
-  delete res[viewing.ds+'_'+viewing.car];
-  closeView(); render(); await saveToFirebase();
+async function delOneRes(ds,c){
+  delete res[ds+'_'+c];
+  render();
+  const remaining=[getResData(res[ds+'_yaris']),getResData(res[ds+'_city'])].filter(Boolean);
+  if(remaining.length===0) closeView();
+  else viewDay(ds);
+  await saveToFirebase();
 }
 
-function viewRes(ds,c){
-  const rv=getResData(res[ds+'_'+c]);
-  if(!rv) return;
-  viewing={ds,car:c};
+function viewDay(ds){
+  const rvY=getResData(res[ds+'_yaris']);
+  const rvC=getResData(res[ds+'_city']);
+  if(!rvY&&!rvC) return;
   const d=new Date(ds+'T12:00:00');
   document.getElementById('vt').textContent='วัน'+DOW_TH[d.getDay()]+' '+d.getDate()+' '+MTH[d.getMonth()]+' '+(d.getFullYear()+543);
-  document.getElementById('vs').textContent=c==='yaris'?'Yaris – สีขาว':'City – Sonic Grey Pearl';
-  const pEl=document.getElementById('v-person');
-  pEl.textContent=rv.person;
-  pEl.className='det-value det-v'+rv.person.toLowerCase();
-  const cEl=document.getElementById('v-car');
-  cEl.textContent=c==='yaris'?'Yaris':'City';
-  cEl.className='det-value '+(c==='yaris'?'det-vy':'det-vc');
-  const tb=document.getElementById('v-time-block');
-  if(rv.startTime&&rv.endTime){
-    document.getElementById('v-time').textContent=rv.startTime+' – '+rv.endTime;
-    const s=timeToTick(rv.startTime),e=timeToTick(rv.endTime);
-    document.getElementById('v-time-fill').style.left=(s/96*100)+'%';
-    document.getElementById('v-time-fill').style.width=((e-s)/96*100)+'%';
-    tb.style.display='';
-  } else {
-    tb.style.display='none';
-  }
+  const items=[];
+  if(rvY) items.push({car:'yaris',rv:rvY});
+  if(rvC) items.push({car:'city',rv:rvC});
+  document.getElementById('vs').textContent=items.length+' การจอง';
+  const list=document.getElementById('v-list');
+  list.innerHTML='';
+  items.forEach(({car,rv})=>{
+    const carName=car==='yaris'?'Yaris':'City';
+    const carCls=car==='yaris'?'det-vy':'det-vc';
+    const personCls='det-v'+rv.person.toLowerCase();
+    const timeStr=rv.startTime&&rv.endTime?rv.startTime+' – '+rv.endTime:'–';
+    let barHTML='';
+    if(rv.startTime&&rv.endTime){
+      const s=timeToTick(rv.startTime),e=timeToTick(rv.endTime);
+      barHTML='<div class="det-time-bar" style="margin-top:8px"><div class="det-time-fill" style="left:'+(s/96*100)+'%;width:'+((e-s)/96*100)+'%"></div></div>';
+    }
+    const card=document.createElement('div');
+    card.className='det-card';
+    card.innerHTML=
+      '<div class="det-card-hd">'
+        +'<span class="det-value '+carCls+'">'+carName+'</span>'
+        +'<button class="del-mini" onclick="delOneRes(\''+ds+'\',\''+car+'\')">ลบ</button>'
+      +'</div>'
+      +'<div class="det-grid">'
+        +'<div><div class="det-label">คนขับ</div><div class="det-value '+personCls+'">'+rv.person+'</div></div>'
+        +'<div><div class="det-label">ช่วงเวลา</div><div class="det-value">'+timeStr+'</div></div>'
+      +'</div>'
+      +barHTML;
+    list.appendChild(card);
+  });
   document.getElementById('view-ovl').classList.add('open');
 }
 
@@ -621,7 +625,7 @@ function createPill(ds,c,rv){
     +'<span class="pill-name">'+rv.person+'</span>'
     +(timeStr?'<span class="pill-t">'+timeStr+'</span>':'')
     +'</div>';
-  pill.addEventListener('click',e=>{e.stopPropagation();viewRes(ds,c);});
+  pill.addEventListener('click',e=>{e.stopPropagation();viewDay(ds);});
   return pill;
 }
 
